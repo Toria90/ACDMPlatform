@@ -139,6 +139,8 @@ contract AcdmPlatform is AccessControl {
         saleRound.startTime = block.timestamp;
         
         if (saleVolume > 0) IERC20MintBurn(acdmToken).mint(address(this), saleVolume);
+        
+        emit StartSaleRound(saleRound.startTime, saleVolume, saleRound.price);
     }
     
     function buyAcdm() public payable {
@@ -153,6 +155,8 @@ contract AcdmPlatform is AccessControl {
         _sendSaleRoundCommission(msg.sender, msg.value - residue);
 
         if (residue > 0) payable(msg.sender).send(residue);
+        
+        emit BuyAcdm(block.timestamp, msg.sender, buyVolume);
     }
     
     function startTradeRound() public {
@@ -163,6 +167,8 @@ contract AcdmPlatform is AccessControl {
         
         tradeRound.startTime = block.timestamp;
         tradeRound.total = 0;
+        
+        emit StartTradeRound(tradeRound.startTime);
     }
     
     function addOrder(uint256 amount, uint256 price) public {
@@ -181,6 +187,8 @@ contract AcdmPlatform is AccessControl {
         _nextOrderId ++;
         
         SafeERC20.safeTransferFrom(IERC20MintBurn(acdmToken), msg.sender, address(this), amount);
+        
+        emit CreateOrder(block.timestamp, _nextOrderId-1, msg.sender, amount, price);
     }
     
     function removeOrder(uint256 orderId) public {
@@ -190,6 +198,8 @@ contract AcdmPlatform is AccessControl {
         SafeERC20.safeTransfer(IERC20MintBurn(acdmToken), orders[orderId].creator, orders[orderId].amount - orders[orderId].executedAmount);
 
         _deleteOrder(orderId);
+        
+        emit CancelOrder(block.timestamp, orderId);
     }
     
     function redeemOrder() public payable {
@@ -218,7 +228,12 @@ contract AcdmPlatform is AccessControl {
 
             payable(orders[currentOrderId].creator).send(currentOrderSaleAmount * orders[currentOrderId].price / 10**_acdmTokenDecimals - currentOrderPlatformCommission);
             
-            if (orders[currentOrderId].amount == orders[currentOrderId].executedAmount) _deleteOrder(currentOrderId);
+            emit Deal(block.timestamp, currentOrderId, msg.sender, currentOrderSaleAmount, orders[currentOrderId].price);
+            
+            if (orders[currentOrderId].amount == orders[currentOrderId].executedAmount) {
+                _deleteOrder(currentOrderId);
+                 emit CloseOrder(block.timestamp, currentOrderId);
+            }
 
             currentOrderPrice = _priceTree.first();
             currentOrderId = _priceOrders[currentOrderPrice].first();
@@ -285,4 +300,18 @@ contract AcdmPlatform is AccessControl {
         }
     }
     
+    
+    event StartSaleRound(uint256 timestamp, uint256 volume, uint256 price);
+
+    event BuyAcdm(uint256 timestamp, address account, uint256 amount);
+    
+    event StartTradeRound(uint256 timestamp);
+    
+    event CreateOrder(uint256 timestamp, uint256 id, address account, uint256 amount, uint256 price);
+    
+    event Deal(uint256 timestamp, uint256 orderId, address account, uint256 amount, uint256 price);
+    
+    event CloseOrder(uint256 timestamp, uint256 id);
+    
+    event CancelOrder(uint256 timestamp, uint256 id);
 }
